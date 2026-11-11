@@ -2,7 +2,7 @@
 
 A Shiny app for calculating chlorophyll-a (Chla) and phaeopigment (Phaeo) from fluorescence measurements, with blank correction, optional dilution-factor handling, and CSV export.
 
-**Live app:** <https://nicoschiff.github.io/chla_app/>
+**Live app:** <[https://nicoschiff.github.io/chla_app/](https://nicoschiff.github.io/projet_chla/)>
 
 ## Features
 
