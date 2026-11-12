@@ -36,6 +36,16 @@ calc_Chla <- function(df, K = 1.789, A = 2.052, blanks = NULL) {
   df
 }
 
+# Sérialise un tableau en CSV UTF-8 pour un téléchargement côté navigateur.
+csv_vers_texte <- function(donnees) {
+  csv <- character()
+  con <- textConnection("csv", open = "w", local = TRUE)
+  on.exit(try(close(con), silent = TRUE), add = TRUE)
+  write.csv(donnees, con, row.names = FALSE)
+  close(con)
+  enc2utf8(paste(csv, collapse = "\n"))
+}
+
 ecrire_csv <- function(donnees, fichier) {
   # Export uniforme : virgule comme séparateur, point décimal, UTF-8.
   write.csv(donnees, fichier, row.names = FALSE, fileEncoding = "UTF-8")
@@ -162,9 +172,9 @@ sidebar_chla <- sidebarPanel(
   fluidRow(column(4, "M"), column(4, numericInput("fb_m", NULL, 0)), column(4, numericInput("fa_m", NULL, 0))),
   fluidRow(column(4, "H"), column(4, numericInput("fb_h", NULL, 0)), column(4, numericInput("fa_h", NULL, 0))),
   hr(),
-  downloadButton("chla_template", "Télécharger un modèle vide (.csv)"),
+  actionButton("chla_template", tagList(icon("download"), " Télécharger un modèle vide (.csv)")),
   helpText("Fichier CSV vide avec les bons noms de colonnes, à remplir puis recharger."),
-  downloadButton("chla_export", "Exporter les résultats")
+  actionButton("chla_export", tagList(icon("download"), " Exporter les résultats"))
 )
 
 sidebar_poc <- sidebarPanel(
@@ -187,9 +197,9 @@ sidebar_poc <- sidebarPanel(
   actionButton("poc_add_blank", "+ Ajouter un blanc"),
   actionButton("poc_remove_blank", "− Retirer un blanc"),
   hr(),
-  downloadButton("poc_template", "Télécharger un modèle vide (.csv)"),
+  actionButton("poc_template", tagList(icon("download"), " Télécharger un modèle vide (.csv)")),
   helpText("Fichier CSV vide avec les bons noms de colonnes, à remplir puis recharger."),
-  downloadButton("poc_export", "Exporter les résultats")
+  actionButton("poc_export", tagList(icon("download"), " Exporter les résultats"))
 )
 
 sidebar_pop_bsi <- function(id, methode, vol_defaut) {
@@ -223,14 +233,27 @@ sidebar_pop_bsi <- function(id, methode, vol_defaut) {
     actionButton(paste0(id, "_add_blank"), "+ Ajouter un blanc"),
     actionButton(paste0(id, "_remove_blank"), "− Retirer un blanc"),
     hr(),
-    downloadButton(paste0(id, "_template"), "Télécharger un modèle vide (.csv)"),
+    actionButton(paste0(id, "_template"), tagList(icon("download"), " Télécharger un modèle vide (.csv)")),
     helpText("Fichier CSV vide avec les bons noms de colonnes, à remplir puis recharger."),
-    downloadButton(paste0(id, "_export"), "Exporter les résultats")
+    actionButton(paste0(id, "_export"), tagList(icon("download"), " Exporter les résultats"))
   )
 }
 
 ui <- navbarPage(
   "Analyses de laboratoire",
+  tags$script(HTML("
+    Shiny.addCustomMessageHandler('download_csv', function(message) {
+      var blob = new Blob(['\\uFEFF' + message.content], { type: 'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement('a');
+      link.href = url;
+      link.download = message.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    });
+  ")),
   tabPanel(
     "Chl-a",
     sidebarLayout(
@@ -492,14 +515,28 @@ server <- function(input, output, session) {
         )
         table |> formatRound(colonnes, 3)
       })
-      output[[paste0(id, "_export")]] <- downloadHandler(
-        filename = function() paste0(id, "_resultats_", Sys.Date(), ".csv"),
-        content = function(file) ecrire_csv(resultat(), file)
-      )
-      output[[paste0(id, "_template")]] <- downloadHandler(
-        filename = function() paste0("modele_", id, ".csv"),
-        content = function(file) ecrire_csv(cfg$defaults[0, , drop = FALSE], file)
-      )
+      observeEvent(input[[paste0(id, "_export")]], {
+        if (is.null(input[[cfg$file]]) || is.null(store())) {
+          showNotification("Veuillez d’abord charger un fichier de données.", type = "warning")
+          return()
+        }
+        res <- tryCatch(resultat(), error = function(e) {
+          showNotification(paste("Export impossible :", conditionMessage(e)), type = "error")
+          NULL
+        })
+        if (!is.null(res)) {
+          session$sendCustomMessage("download_csv", list(
+            filename = paste0(id, "_resultats_", Sys.Date(), ".csv"),
+            content = csv_vers_texte(res)
+          ))
+        }
+      }, ignoreInit = TRUE)
+      observeEvent(input[[paste0(id, "_template")]], {
+        session$sendCustomMessage("download_csv", list(
+          filename = paste0("modele_", id, ".csv"),
+          content = csv_vers_texte(cfg$defaults[0, , drop = FALSE])
+        ))
+      }, ignoreInit = TRUE)
     })
   }
 }
