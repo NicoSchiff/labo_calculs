@@ -172,6 +172,7 @@ sidebar_chla <- sidebarPanel(
       tags$ul(
         tags$li(strong("Fb"), " : fluorescence avant acidification"),
         tags$li(strong("Fa"), " : fluorescence après acidification"),
+        tags$li(strong("Vol"), " : volume filtré (mL)"),
         tags$li(
           strong("Level_Fb"), " / ", strong("Level_Fa"),
           " : gamme de mesure (L, M ou H), qui sert à choisir le bon blanc"
