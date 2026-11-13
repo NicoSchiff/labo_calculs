@@ -1,114 +1,132 @@
-# Chlorophyll-a and Phaeopigment Calculator
+# Lab Analysis Calculator (Chl-a · POC/PON · POP · BSi)
 
-A Shiny app for calculating chlorophyll-a (Chla) and phaeopigment (Phaeo) from fluorescence measurements, with blank correction, optional dilution-factor handling, and CSV export.
+A Shiny app for processing common oceanography/limnology lab measurements:
+chlorophyll-a and phaeopigments, particulate organic carbon and nitrogen (POC/PON),
+particulate organic phosphorus (POP) and biogenic silica (BSi).
+It runs entirely in the browser through [Shinylive](https://posit-dev.github.io/r-shinylive/):
+nothing to install.
 
-**Live app:** [https://nicoschiff.github.io/chla_app/](https://nicoschiff.github.io/projet_chla/)
+**Live app:** https://nicoschiff.github.io/labo_calculs/
 
 ## Features
 
-- Upload measurement data as a `.csv` or `.xlsx` file.
-- Set the calibration factors **K** and **A** and the fluorescence blanks for the **L**, **M**, and **H** levels. The app starts with `K = 1.789`, `A = 2.052`, and zero for each blank value; these values can be changed in the interface.
-- Calculate Chla and Phaeo and inspect the results in a browsable table. The displayed `FD`, `Chla`, and `Phaeo` values are rounded to three decimal places.
-- Download the results as a CSV file in the browser.
+- Four tabs: **Chl-a**, **POC / PON**, **POP**, **BSi**
+- Upload `.csv` (comma, semicolon or tab separated, `1.25` or `1,25`) or `.xlsx`
+- Tolerant column headers: case, spaces, underscores and UTF-8 BOM are ignored
+- Blank correction
+  - Chl-a: one Fb/Fa blank per measurement range (L, M, H)
+  - POC/PON, POP, BSi: any number of replicate blanks; the mean is subtracted
+    (mean, n and SD are displayed)
+- **Dilution factor (FD)** supported in Chl-a, POP and BSi (see below)
+- Results in an interactive table (3 decimals on screen, full precision in the export)
+- **CSV export** done directly in the browser
+- **Empty template download** for each analysis, with the correct column names
+- Extra columns (sample ID, station, depth…) are kept unchanged in the export
 
-## Input file format
+## Input columns
 
-The uploaded file must contain these columns:
+| Tab | Required | Optional |
+|---|---|---|
+| Chl-a | `Fb`, `Fa`, `Vol`, `Level_Fb`, `Level_Fa` | `FD`, or `V_extrait` + `V_acetone` |
+| POC / PON | `Volume_L`, `PC_mg`, `PN_mg` | — |
+| POP | `Volume_L`, `Concentration` | `Vol_extrait_L` (default 0.005 L), `FD` (default 1) |
+| BSi | `Volume_L`, `Concentration` | `Vol_extrait_L` (default 0.025 L), `FD` (default 1) |
 
-| Column | Purpose |
-|---|---|
-| `Fb` | Fluorescence measurement before acidification |
-| `Fa` | Fluorescence measurement after acidification |
-| `Vol` | Volume value used as the denominator in the calculations |
-| `Level_Fb` | Blank level associated with `Fb` (`L`, `M`, or `H`) |
-| `Level_Fa` | Blank level associated with `Fa` (`L`, `M`, or `H`) |
+- `Fb` / `Fa`: fluorescence before / after acidification
+- `Vol`: filtered volume
+- `Level_Fb` / `Level_Fa`: measurement range `L`, `M` or `H`, used to pick the blank
+  (trimmed, case-insensitive; an error is shown if a level has no matching blank)
+- For POP and BSi, `FD` may also be named `Fact_dil`, `Dilution` or `Dil`
+- A value present in the file always overrides the default, so a dilution can be
+  set for a single sample
 
-The level labels are trimmed and compared without regard to letter case. The app reports an error if a non-empty level does not match an available `L`, `M`, or `H` blank.
+Tip: use **Télécharger un modèle vide (.csv)** in each tab to get a ready-to-fill file.
 
-The dilution factor is optional:
+## Chl-a calculation
 
-- If `FD` is present, its values are used; missing (`NA`) `FD` values default to `1`.
-- If `FD` is absent and both `V_extrait` and `V_acetone` are present, the app calculates `FD = (V_extrait + V_acetone) / V_extrait`. For example, `V_extrait = 2` and `V_acetone = 6` give `FD = 4`.
-- If neither condition applies, `FD` defaults to `1` for every row.
+Blank correction by range:
 
-Illustrative CSV-style example (measurement values are placeholders):
+```text
+Fb_c = Fb − Fb.blank[Level_Fb]
+Fa_c = Fa − Fa.blank[Level_Fa]
+```
 
-| Fb | Fa | Vol | Level_Fb | Level_Fa | FD |
-|---:|---:|---:|:---:|:---:|---:|
-| 120 | 45 | 10 | L | L | 1 |
-| 210 | 80 | 10 | M | M | 2 |
+Dilution factor, in order of priority:
 
-CSV uploads may use comma or semicolon separators. The app selects a CSV reader based on the first line and tries the alternate reader if parsing fails. Excel uploads must be `.xlsx` files.
+1. `FD` column present → its values are used (`NA` → 1)
+2. Otherwise, `V_extrait` and `V_acetone` both present →
+   `FD = (V_extrait + V_acetone) / V_extrait` (e.g. 2 + 6 → FD = 4)
+3. Otherwise `FD = 1`
 
-## Calculations
-
-For each measurement, the app subtracts the blank matching its fluorescence level:
-
-- `Fb_c = Fb - Fb.blank[Level_Fb]`
-- `Fa_c = Fa - Fa.blank[Level_Fa]`
-
-It then calculates:
+The `FD` actually used is added to the results.
 
 ```text
 Chla  = FD × K × (Fb_c − Fa_c) / Vol
 Phaeo = FD × K × (A × Fa_c − Fb_c) / Vol
 ```
 
-The interface defaults are `K = 1.789` and `A = 2.052`. Blank inputs for each of `L`, `M`, and `H` start at zero. These are user-adjustable calibration and blank values.
+Defaults: `K = 1.789` (includes extraction volume), `A = 2.052` (acid ratio),
+blanks = 0. All are editable in the interface.
 
-For CSV input, blank lines are retained by the CSV import settings; blank measurement records yield missing calculated values rather than numeric Chla/Phaeo values. Missing values are written as empty cells in the downloaded CSV. (Excel files are read with `readxl`.)
+Example:
 
-## Export
+| Fb | Fa | Vol | Level_Fb | Level_Fa | FD |
+|---|---|---|---|---|---|
+| 120 | 45 | 10 | L | L | 1 |
+| 210 | 80 | 10 | M | M | 2 |
 
-Select **Download result (.csv)** to initiate a browser-side download. The exported file:
+POC/PON, POP and BSi formulas are defined in `app/calc_functions.R`.
 
-- uses a comma separator and `.` as the decimal mark;
-- is UTF-8 encoded and includes a UTF-8 BOM;
-- writes missing values as empty cells;
-- is named `chla_resultats_YYYY-MM-DD.csv`, using the app server's current date.
+## CSV export
 
-The export contains the result data, not the three-decimal display formatting applied to the interactive table.
+- Comma separator, `.` decimal mark, UTF-8 with BOM (opens correctly in Excel)
+- Missing values written as empty cells
+- File name: `<analysis>_resultats_YYYY-MM-DD.csv` (e.g. `chla_resultats_2026-11-13.csv`)
+- The download is generated client-side (JavaScript `Blob`), because Shiny's
+  `downloadHandler` returns an `.html` file under Shinylive
 
 ## Run locally
 
-Install R, then install the packages used by the app:
-
 ```r
-install.packages(c("shiny", "readxl", "dplyr", "tibble", "DT"))
+install.packages(c("shiny", "readxl", "DT"))
+shiny::runApp("app")
 ```
 
-From the repository's parent directory, run:
+## Update the online version
+
+From the repository root (keep it outside iCloud, e.g. `~/GitHub/labo_calculs`):
 
 ```r
-shiny::runApp("chla_app")
+setwd("~/GitHub/labo_calculs")
+unlink("docs", recursive = TRUE)
+shinylive::export("app", "docs")
 ```
 
-## Deploy or update on GitHub Pages
-
-From the repository's parent directory, export the app for shinylive:
-
-```r
-shinylive::export(appdir = "chla_app", destdir = "docs")
-```
-
-After export, use GitHub Desktop to commit and push the updated files. In the repository's GitHub Pages settings, select deployment from the `main` branch and the `/docs` folder.
+Then in GitHub Desktop: **Commit to main** → **Push origin**.
+GitHub Pages is set to deploy from `main` / `docs`. Allow a few minutes after the push;
+if an old version still shows up, hard-refresh (**Cmd+Shift+R**) or unregister the
+service worker (DevTools → Application → Service workers → Unregister).
 
 ## Repository structure
 
 ```text
-chla_app/
-└── app.R       # Shiny application
-
-docs/           # shinylive export served by GitHub Pages
-.gitignore
+labo_calculs/
+├── app/
+│   ├── app.R             # Shiny UI and server (Chl-a, POC/PON, POP, BSi)
+│   └── calc_functions.R  # POC/PON, POP and BSi calculations
+├── docs/                 # Shinylive export served by GitHub Pages
+├── templates/            # Example input files
+├── tests/                # Tests
+├── CHANGELOG.md
+└── README.md
 ```
 
-## Notes and troubleshooting
+## Troubleshooting
 
-- Check that the required column names are spelled exactly as shown, including capitalization and underscores.
-- Confirm that each non-empty `Level_Fb` and `Level_Fa` entry is `L`, `M`, or `H`, and that the relevant blank values are set in the app.
-- If the browser appears to show an older deployed version, try a hard refresh: **Cmd+Shift+R** on macOS.
-
-## License
-
-**License: To be determined.** Add the applicable license before redistributing the app.
+- **"Colonnes manquantes"**: check column names (see table above, or download a template).
+- **"Certains niveaux (L/M/H) sont vides ou n'ont pas de blanc associé"**:
+  `Level_Fb` / `Level_Fa` must be `L`, `M` or `H` on every row.
+- **Dilution seems ignored**: check the `FD` column in the results table. If it shows 1,
+  the file has no `FD` (or `V_extrait`/`V_acetone`) column, or the header is misspelled.
+- **Download gives an `.html` file**: the site is serving an old export; re-export `docs/`
+  and clear the service worker.
