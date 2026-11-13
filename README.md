@@ -1,100 +1,98 @@
-# Lab Analysis Calculator (Chl-a · POC/PON · POP · BSi)
+# Calculateur d’analyses de laboratoire (Chl-a · POC/PON · POP · BSi)
 
-A Shiny app for processing common oceanography/limnology lab measurements:
-chlorophyll-a and phaeopigments, particulate organic carbon and nitrogen (POC/PON),
-particulate organic phosphorus (POP) and biogenic silica (BSi).
-It runs entirely in the browser through [Shinylive](https://posit-dev.github.io/r-shinylive/):
-nothing to install.
+Application Shiny pour traiter les mesures courantes en laboratoire d’océanographie et de limnologie :
+chlorophylle a et phéopigments, carbone et azote organiques particulaires (POC/PON),
+phosphore organique particulaire (POP) et silice biogénique (BSi).
+Elle s’exécute entièrement dans le navigateur grâce à [Shinylive](https://posit-dev.github.io/r-shinylive/) :
+rien à installer.
 
-**Live app:** https://nicoschiff.github.io/labo_calculs/
+**Application en ligne :** https://nicoschiff.github.io/labo_calculs/
 
-## Features
+## Fonctionnalités
 
-- Four tabs: **Chl-a**, **POC / PON**, **POP**, **BSi**
-- Upload `.csv` (comma, semicolon or tab separated, `1.25` or `1,25`) or `.xlsx`
-- Tolerant column headers: case, spaces, underscores and UTF-8 BOM are ignored
-- Blank correction
-  - Chl-a: one Fb/Fa blank per measurement range (L, M, H)
-  - POC/PON, POP, BSi: any number of replicate blanks; the mean is subtracted
-    (mean, n and SD are displayed)
-- **Dilution factor (FD)** supported in Chl-a, POP and BSi (see below)
-- Results in an interactive table (3 decimals on screen, full precision in the export)
-- **CSV export** done directly in the browser
-- **Empty template download** for each analysis, with the correct column names
-- Extra columns (sample ID, station, depth…) are kept unchanged in the export
+- Quatre onglets : **Chl-a**, **POC / PON**, **POP**, **BSi**
+- Import de fichiers `.csv` (séparés par des virgules, des points-virgules ou des tabulations, avec `1.25` ou `1,25`) ou `.xlsx`
+- En-têtes de colonnes flexibles : la casse, les espaces, les tirets bas et le BOM UTF-8 sont ignorés
+- Correction du blanc
+  - Chl-a : un blanc Fb/Fa par plage de mesure (L, M, H)
+  - POC/PON, POP, BSi : nombre quelconque de blancs répétés ; leur moyenne est soustraite
+    (la moyenne, n et l’écart-type sont affichés)
+- **Facteur de dilution (FD)** pris en charge pour Chl-a, POP et BSi (voir ci-dessous)
+- Résultats dans un tableau interactif (3 décimales à l’écran, précision complète dans l’export)
+- **Export CSV** effectué directement dans le navigateur
+- **Téléchargement d’un modèle vide** pour chaque analyse, avec les noms de colonnes appropriés
+- Les colonnes supplémentaires (ID d’échantillon, station, profondeur…) sont conservées sans modification dans l’export
 
-## Input columns
+## Colonnes d’entrée
 
-| Tab | Required | Optional |
+| Onglet | Obligatoires | Facultatives |
 |---|---|---|
-| Chl-a | `Fb`, `Fa`, `Vol`, `Level_Fb`, `Level_Fa` | `FD`, or `V_extrait` + `V_acetone` |
+| Chl-a | `Fb`, `Fa`, `Vol`, `Level_Fb`, `Level_Fa` | `FD`, ou `V_extrait` + `V_acetone` |
 | POC / PON | `Volume_L`, `PC_mg`, `PN_mg` | — |
-| POP | `Volume_L`, `Concentration` | `Vol_extrait_L` (default 0.005 L), `FD` (default 1) |
-| BSi | `Volume_L`, `Concentration` | `Vol_extrait_L` (default 0.025 L), `FD` (default 1) |
+| POP | `Volume_L`, `Concentration` | `Vol_extrait_L` (par défaut : 0.005 L), `FD` (par défaut : 1) |
+| BSi | `Volume_L`, `Concentration` | `Vol_extrait_L` (par défaut : 0.025 L), `FD` (par défaut : 1) |
 
-- `Fb` / `Fa`: fluorescence before / after acidification
-- `Vol`: filtered volume
-- `Level_Fb` / `Level_Fa`: measurement range `L`, `M` or `H`, used to pick the blank
-  (trimmed, case-insensitive; an error is shown if a level has no matching blank)
-- For POP and BSi, `FD` may also be named `Fact_dil`, `Dilution` or `Dil`
-- A value present in the file always overrides the default, so a dilution can be
-  set for a single sample
+- `Fb` / `Fa` : fluorescence avant / après acidification
+- `Vol` : volume filtré
+- `Level_Fb` / `Level_Fa` : plage de mesure `L`, `M` ou `H`, utilisée pour sélectionner le blanc
+  (espaces de début et de fin supprimés, sans distinction de casse ; une erreur s’affiche si aucun blanc correspondant n’existe pour une plage)
+- Pour POP et BSi, `FD` peut aussi être nommé `Fact_dil`, `Dilution` ou `Dil`
+- Une valeur présente dans le fichier remplace toujours la valeur par défaut ; la dilution peut donc être définie pour un seul échantillon
 
-Tip: use **Télécharger un modèle vide (.csv)** in each tab to get a ready-to-fill file.
+Conseil : utilisez **Télécharger un modèle vide (.csv)** dans chaque onglet pour obtenir un fichier prêt à remplir.
 
-## Chl-a calculation
+## Calcul de Chl-a
 
-Blank correction by range:
+Correction du blanc par plage :
 
 ```text
 Fb_c = Fb − Fb.blank[Level_Fb]
 Fa_c = Fa − Fa.blank[Level_Fa]
 ```
 
-Dilution factor, in order of priority:
+Facteur de dilution, par ordre de priorité :
 
-1. `FD` column present → its values are used (`NA` → 1)
-2. Otherwise, `V_extrait` and `V_acetone` both present →
-   `FD = (V_extrait + V_acetone) / V_extrait` (e.g. 2 + 6 → FD = 4)
-3. Otherwise `FD = 1`
+1. Colonne `FD` présente → ses valeurs sont utilisées (`NA` → 1)
+2. Sinon, si `V_extrait` et `V_acetone` sont toutes deux présentes →
+   `FD = (V_extrait + V_acetone) / V_extrait` (ex. : 2 + 6 → FD = 4)
+3. Sinon, `FD = 1`
 
-The `FD` actually used is added to the results.
+Le `FD` effectivement utilisé est ajouté aux résultats.
 
 ```text
 Chla  = FD × K × (Fb_c − Fa_c) / Vol
 Phaeo = FD × K × (A × Fa_c − Fb_c) / Vol
 ```
 
-Defaults: `K = 1.789` (includes extraction volume), `A = 2.052` (acid ratio),
-blanks = 0. All are editable in the interface.
+Valeurs par défaut : `K = 1.789` (inclut le volume d’extraction), `A = 2.052` (rapport d’acidification),
+blancs = 0. Ces valeurs peuvent toutes être modifiées dans l’interface.
 
-Example:
+Exemple :
 
 | Fb | Fa | Vol | Level_Fb | Level_Fa | FD |
 |---|---|---|---|---|---|
 | 120 | 45 | 10 | L | L | 1 |
 | 210 | 80 | 10 | M | M | 2 |
 
-POC/PON, POP and BSi formulas are defined in `app/calc_functions.R`.
+Les formules de POC/PON, POP et BSi sont définies dans `app/calc_functions.R`.
 
-## CSV export
+## Export CSV
 
-- Comma separator, `.` decimal mark, UTF-8 with BOM (opens correctly in Excel)
-- Missing values written as empty cells
-- File name: `<analysis>_resultats_YYYY-MM-DD.csv` (e.g. `chla_resultats_2026-11-13.csv`)
-- The download is generated client-side (JavaScript `Blob`), because Shiny's
-  `downloadHandler` returns an `.html` file under Shinylive
+- Séparateur : virgule ; séparateur décimal : `.` ; encodage UTF-8 avec BOM (s’ouvre correctement dans Excel)
+- Les valeurs manquantes sont écrites dans des cellules vides
+- Nom du fichier : `<analysis>_resultats_YYYY-MM-DD.csv` (ex. : `chla_resultats_2026-11-13.csv`)
+- Le téléchargement est généré côté client (JavaScript `Blob`), car le `downloadHandler` de Shiny renvoie un fichier `.html` dans Shinylive
 
-## Run locally
+## Exécution en local
 
 ```r
 install.packages(c("shiny", "readxl", "DT"))
 shiny::runApp("app")
 ```
 
-## Update the online version
+## Mise à jour de la version en ligne
 
-From the repository root (keep it outside iCloud, e.g. `~/GitHub/labo_calculs`):
+Depuis la racine du dépôt (en dehors d’iCloud, par exemple `~/GitHub/labo_calculs`) :
 
 ```r
 setwd("~/GitHub/labo_calculs")
@@ -102,31 +100,31 @@ unlink("docs", recursive = TRUE)
 shinylive::export("app", "docs")
 ```
 
-Then in GitHub Desktop: **Commit to main** → **Push origin**.
-GitHub Pages is set to deploy from `main` / `docs`. Allow a few minutes after the push;
-if an old version still shows up, hard-refresh (**Cmd+Shift+R**) or unregister the
+Ensuite, dans GitHub Desktop : **Commit to main** → **Push origin**.
+GitHub Pages est configuré pour publier depuis `main` / `docs`. Attendez quelques minutes après l’envoi ;
+si l’ancienne version s’affiche toujours, forcez l’actualisation (**Cmd+Shift+R**) ou désenregistrez le
 service worker (DevTools → Application → Service workers → Unregister).
 
-## Repository structure
+## Structure du dépôt
 
 ```text
 labo_calculs/
 ├── app/
-│   ├── app.R             # Shiny UI and server (Chl-a, POC/PON, POP, BSi)
-│   └── calc_functions.R  # POC/PON, POP and BSi calculations
-├── docs/                 # Shinylive export served by GitHub Pages
-├── templates/            # Example input files
+│   ├── app.R             # Interface et serveur Shiny (Chl-a, POC/PON, POP, BSi)
+│   └── calc_functions.R  # Calculs POC/PON, POP et BSi
+├── docs/                 # Export Shinylive publié par GitHub Pages
+├── templates/            # Fichiers d’entrée d’exemple
 ├── tests/                # Tests
 ├── CHANGELOG.md
 └── README.md
 ```
 
-## Troubleshooting
+## Dépannage
 
-- **"Colonnes manquantes"**: check column names (see table above, or download a template).
-- **"Certains niveaux (L/M/H) sont vides ou n'ont pas de blanc associé"**:
-  `Level_Fb` / `Level_Fa` must be `L`, `M` or `H` on every row.
-- **Dilution seems ignored**: check the `FD` column in the results table. If it shows 1,
-  the file has no `FD` (or `V_extrait`/`V_acetone`) column, or the header is misspelled.
-- **Download gives an `.html` file**: the site is serving an old export; re-export `docs/`
-  and clear the service worker.
+- **« Colonnes manquantes »** : vérifiez les noms de colonnes (voir le tableau ci-dessus ou téléchargez un modèle).
+- **« Certains niveaux (L/M/H) sont vides ou n'ont pas de blanc associé »** :
+  `Level_Fb` / `Level_Fa` doivent être `L`, `M` ou `H` sur chaque ligne.
+- **La dilution semble ignorée** : vérifiez la colonne `FD` dans le tableau des résultats. Si elle indique 1,
+  le fichier ne contient pas de colonne `FD` (ni `V_extrait`/`V_acetone`), ou l’en-tête est mal orthographié.
+- **Le téléchargement produit un fichier `.html`** : le site utilise un ancien export ; réexportez `docs/`
+  et effacez le service worker.
