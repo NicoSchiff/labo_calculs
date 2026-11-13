@@ -226,7 +226,7 @@ sidebar_poc <- sidebarPanel(
   actionButton("poc_export", tagList(icon("download"), " Exporter les résultats"))
 )
 
-sidebar_pop_bsi <- function(id, methode, vol_defaut) {
+sidebar_pop <- function(id, methode, vol_defaut) {
   sidebarPanel(
     h4("1. Données"),
     fileInput(paste0(id, "_file"), "Charger un fichier (.csv ou .xlsx)", accept = c(".csv", ".xlsx")),
@@ -241,6 +241,43 @@ sidebar_pop_bsi <- function(id, methode, vol_defaut) {
         tags$li(
           strong("Vol_extrait_L"),
           " : volume d'extraction (L). Valeur par défaut : 0.005 L (5 mL)"
+        ),
+        tags$li(strong("FD"), " : facteur de dilution. Valeur par défaut : 1")
+      ),
+      p(em(
+        "Une valeur saisie dans le fichier est toujours prioritaire sur la valeur par défaut. ",
+        "Vous pouvez donc indiquer une dilution pour un seul échantillon.",
+        "Toutes les autres colonnes sont conservées à l'identique dans le fichier exporté."
+      ))
+    )),
+    h4("2. Valeurs de blanc"),
+    helpText(paste("Concentrations des blancs", methode, "soustraites aux mesures.")),
+    uiOutput(paste0(id, "_blank_inputs")),
+    uiOutput(paste0(id, "_blank_summary")),
+    actionButton(paste0(id, "_add_blank"), "+ Ajouter un blanc"),
+    actionButton(paste0(id, "_remove_blank"), "− Retirer un blanc"),
+    hr(),
+    actionButton(paste0(id, "_template"), tagList(icon("download"), " Télécharger un modèle vide (.csv)")),
+    helpText("Fichier CSV vide avec les bons noms de colonnes, à remplir puis recharger."),
+    actionButton(paste0(id, "_export"), tagList(icon("download"), " Exporter les résultats"))
+  )
+}
+
+sidebar_bsi <- function(id, methode, vol_defaut) {
+  sidebarPanel(
+    h4("1. Données"),
+    fileInput(paste0(id, "_file"), "Charger un fichier (.csv ou .xlsx)", accept = c(".csv", ".xlsx")),
+    helpText(tagList(
+      strong("Colonnes obligatoires :"),
+      tags$ul(
+        tags$li(strong("Volume_L"), " : volume d'eau filtré (L)"),
+        tags$li(strong("Concentration"), " : concentration mesurée dans l'extrait")
+      ),
+      strong("Colonnes optionnelles :"),
+      tags$ul(
+        tags$li(
+          strong("Vol_extrait_L"),
+          " : volume d'extraction (L). Valeur par défaut : 0.025 L (25 mL)"
         ),
         tags$li(strong("FD"), " : facteur de dilution. Valeur par défaut : 1")
       ),
@@ -300,7 +337,7 @@ ui <- navbarPage(
   tabPanel(
     "POP",
     sidebarLayout(
-      sidebar_pop_bsi("pop", "POP", 0.005),
+      sidebar_pop("pop", "POP", 0.005),
       mainPanel(
         h3("Calcul du POP"),
         uiOutput("pop_error"), DTOutput("pop_result")
@@ -310,9 +347,9 @@ ui <- navbarPage(
   tabPanel(
     "BSi",
     sidebarLayout(
-      sidebar_pop_bsi("bsi", "BSi", 0.025),
+      sidebar_bsi("bsi", "BSi", 0.025),
       mainPanel(
-        h3("Calcul de la silice biogène (BSi)"),
+        h3("Calcul de la silice biogénique (BSi)"),
         uiOutput("bsi_error"), DTOutput("bsi_result")
       )
     )
