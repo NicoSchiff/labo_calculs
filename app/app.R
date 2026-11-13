@@ -21,21 +21,47 @@ source(file.path(.app_dir, "calc_functions.R"), local = TRUE)
 rm(.app_file, .app_dir)
 
 # Calcul de chlorophylle, laissé conforme à la version historique.
-calc_Chla <- function(df, K = 1.789, A = 2.052, blanks = NULL) {
+calc_Chla <- function(df, K, A, blanks) {
   required <- c("Fb", "Fa", "Vol", "Level_Fb", "Level_Fa")
   missing_cols <- setdiff(required, names(df))
-  if (length(missing_cols)) stop("Colonnes manquantes : ", paste(missing_cols, collapse = ", "))
-  if (is.null(blanks)) blanks <- data.frame(Level = c("L", "M", "H"), Fb.blank = 0, Fa.blank = 0)
-  idx_fb <- match(toupper(trimws(as.character(df$Level_Fb))), blanks$Level)
-  idx_fa <- match(toupper(trimws(as.character(df$Level_Fa))), blanks$Level)
-  if (anyNA(idx_fb) || anyNA(idx_fa)) stop("Certains niveaux (L/M/H) n'ont pas de blanc associé.")
-  Fb_c <- as.numeric(df$Fb) - blanks$Fb.blank[idx_fb]
-  Fa_c <- as.numeric(df$Fa) - blanks$Fa.blank[idx_fa]
-  df$Chla <- K * (Fb_c - Fa_c) / as.numeric(df$Vol)
-  df$Phaeo <- K * (A * Fa_c - Fb_c) / as.numeric(df$Vol)
+  if (length(missing_cols) > 0) {
+    stop("Colonnes manquantes : ", paste(missing_cols, collapse = ", "))
+  }
+  
+  blank_cols <- c("Level", "Fb.blank", "Fa.blank")
+  missing_blanks <- setdiff(blank_cols, names(blanks))
+  if (length(missing_blanks) > 0) {
+    stop("Colonnes manquantes dans les blancs : ", paste(missing_blanks, collapse = ", "))
+  }
+  
+  # Le facteur de dilution vaut 1 par défaut. Les volumes sont facultatifs.
+  if ("FD" %in% names(df)) {
+    fd <- df$FD
+    fd[is.na(fd)] <- 1
+  } else if (all(c("V_extrait", "V_acetone") %in% names(df))) {
+    fd <- (df$V_extrait + df$V_acetone) / df$V_extrait
+    fd[is.na(fd)] <- 1
+  } else {
+    fd <- rep(1, nrow(df))
+  }
+  df$FD <- fd
+  
+  level_fb <- toupper(trimws(as.character(df$Level_Fb)))
+  level_fa <- toupper(trimws(as.character(df$Level_Fa)))
+  blank_levels <- toupper(trimws(as.character(blanks$Level)))
+  idx_fb <- match(level_fb, blank_levels)
+  idx_fa <- match(level_fa, blank_levels)
+  if (anyNA(idx_fb) || anyNA(idx_fa)) {
+    stop("Certains niveaux (L/M/H) sont vides ou n'ont pas de blanc associé.")
+  }
+  
+  Fb_c <- df$Fb - blanks$Fb.blank[idx_fb]
+  Fa_c <- df$Fa - blanks$Fa.blank[idx_fa]
+  
+  df$Chla <- df$FD * K * (Fb_c - Fa_c) / df$Vol
+  df$Phaeo <- df$FD * K * (A * Fa_c - Fb_c) / df$Vol
   df
 }
-
 # Sérialise via un vrai fichier temporaire comme l'application Chl-a validée.
 csv_vers_texte <- function(donnees) {
   fichier_temp <- tempfile(fileext = ".csv")
